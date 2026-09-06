@@ -42,6 +42,11 @@ class FlxSpriteUtil
 	public static var flashGfx(default, null):Graphics = flashGfxSprite.graphics;
 
 	/**
+	 * Global supersampling antialiasing factor (1 = disabled, 4 = perfectly smooth).
+	 */
+	public static var supersamplingFactor:Int = 4;
+
+	/**
 	 * Takes two source images (typically from Embedded bitmaps) and puts the resulting image into the output FlxSprite.
 	 * Note: It assumes the source and mask are the same size. Different sizes may result in undesired results.
 	 * It works by copying the source image (your picture) into the output sprite. Then it removes all areas of it that do not
@@ -602,16 +607,34 @@ class FlxSpriteUtil
 	 */
 	public static function updateSpriteGraphic(sprite:FlxSprite, ?drawStyle:DrawStyle):FlxSprite
 	{
-		if (drawStyle == null)
+		if (drawStyle == null) drawStyle = {smoothing: FlxSprite.defaultAntialiasing};
+		else drawStyle.smoothing = FlxSprite.defaultAntialiasing;
+
+		if (supersamplingFactor > 1)
 		{
-			drawStyle = {smoothing: false};
+			final upScale = new Matrix();
+			upScale.scale(supersamplingFactor, supersamplingFactor);
+			if (drawStyle.matrix != null) upScale.concat(drawStyle.matrix);
+
+			final tempWidth = Math.ceil(sprite.pixels.width * supersamplingFactor);
+			final tempHeight = Math.ceil(sprite.pixels.height * supersamplingFactor);
+			final tempBd = new BitmapData(tempWidth, tempHeight, true, FlxColor.TRANSPARENT);
+
+			tempBd.draw(flashGfxSprite, upScale, drawStyle.colorTransform, drawStyle.blendMode, null, true);
+
+			final downScale = new Matrix();
+			downScale.scale(1 / supersamplingFactor, 1 / supersamplingFactor);
+
+			sprite.pixels.fillRect(sprite.pixels.rect, FlxColor.TRANSPARENT);
+			sprite.pixels.draw(tempBd, downScale, null, null, drawStyle.clipRect, true);
+			
+			tempBd.dispose();
 		}
-		else if (drawStyle.smoothing == null)
+		else
 		{
-			drawStyle.smoothing = false;
+			sprite.pixels.draw(flashGfxSprite, drawStyle.matrix, drawStyle.colorTransform, drawStyle.blendMode, drawStyle.clipRect, drawStyle.smoothing);
 		}
 
-		sprite.pixels.draw(flashGfxSprite, drawStyle.matrix, drawStyle.colorTransform, drawStyle.blendMode, drawStyle.clipRect, drawStyle.smoothing);
 		sprite.dirty = true;
 		return sprite;
 	}
